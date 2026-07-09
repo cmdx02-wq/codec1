@@ -1,0 +1,194 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentProvider {
+  STRIPE
+  RAZORPAY
+  FREE
+}
+
+model User {
+  id               String           @id @default(uuid())
+  email            String           @unique
+  passwordHash     String?          // Nullable for OAuth users
+  name             String
+  role             Role             @default(USER)
+  avatarUrl        String?
+  otpToken         String?
+  otpExpires       DateTime?
+  referralCode     String           @unique @default(cuid())
+  referredById     String?
+  referredBy       User?            @relation("Referrals", fields: [referredById], references: [id])
+  referrals        User[]           @relation("Referrals")
+  affiliateBalance Float            @default(0.0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  orders           Order[]
+  blogs            Blog[]
+  comments         Comment[]
+  certificates     Certificate[]
+  notifications    Notification[]
+  bookmarks        Bookmark[]
+  contactMessages  ContactMessage[]
+}
+
+model Course {
+  id            String         @id @default(uuid())
+  title         String
+  description   String
+  thumbnail     String
+  price         Float
+  isFree        Boolean        @default(false)
+  difficulty    String         // Beginner, Intermediate, Advanced
+  duration      String         // e.g. "4 Hours"
+  modules       Json           // List of modules and lessons
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  orders        Order[]
+  certificates  Certificate[]
+  bookmarks     Bookmark[]
+}
+
+model Service {
+  id          String    @id @default(uuid())
+  name        String
+  description String
+  image       String
+  price       Float
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  orders      Order[]
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  courseId    String?
+  course      Course?     @relation(fields: [courseId], references: [id])
+  serviceId   String?
+  service     Service?    @relation(fields: [serviceId], references: [id])
+  totalAmount Float
+  status      OrderStatus @default(PENDING)
+  couponId    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  payments    Payment[]
+}
+
+model Payment {
+  id                 String          @id @default(uuid())
+  orderId            String
+  order              Order           @relation(fields: [orderId], references: [id])
+  amount             Float
+  currency           String          @default("USD")
+  status             PaymentStatus   @default(PENDING)
+  provider           PaymentProvider
+  providerPaymentId  String?         // Stripe payment intent ID or Razorpay payment ID
+  providerOrderId    String?         // Razorpay Order ID
+  createdAt          DateTime        @default(now())
+}
+
+model Blog {
+  id            String    @id @default(uuid())
+  title         String
+  slug          String    @unique
+  content       String    @db.Text
+  featuredImage String
+  category      String
+  published     Boolean   @default(false)
+  authorId      String
+  author        User      @relation(fields: [authorId], references: [id])
+  viewCount     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  comments      Comment[]
+  bookmarks     Bookmark[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  blogId    String
+  blog      Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  name      String
+  email     String
+  message   String
+  status    String   @default("PENDING") // PENDING, READ, REPLIED
+  createdAt DateTime @default(now())
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Certificate {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id])
+  certificateUrl String
+  issuedAt       DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  courseId  String?
+  course    Course?  @relation(fields: [courseId], references: [id])
+  blogId    String?
+  blog      Blog?    @relation(fields: [blogId], references: [id])
+  createdAt DateTime @default(now())
+}
